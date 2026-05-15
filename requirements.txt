@@ -1,0 +1,14 @@
+streamlit==1.32.0
+streamlit-autorefresh==0.0.1
+pandas==2.2.0
+requests==2.31.0
+fastapi==0.109.0
+uvicorn==0.27.0
+sqlalchemy==2.0.25
+pydantic==2.6.1
+langgraph==0.0.26
+langchain-groq==0.0.1
+langchain-core==0.1.25
+numpy==1.26.4
+apscheduler==3.10.4
+python-dotenv==1.0.1
