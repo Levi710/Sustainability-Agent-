@@ -81,6 +81,7 @@ class AgentLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String(50), index=True)
     agent_name = Column(String(100))
+    device = Column(String(100), nullable=True)
     action = Column(String(200))
     output = Column(Text)
     details = Column(Text)  # JSON string
@@ -96,3 +97,30 @@ class DoctorAudit(Base):
     verification_status = Column(String(50))  # VERIFIED, SUPERFICIAL, FAILED
     doctor_notes = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SessionReport(Base):
+    __tablename__ = "session_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(50), index=True)
+    final_explanation = Column(Text)
+    summary_json = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DeviceRegistry(Base):
+    """
+    IoT Device Registry — The Source of Truth for all connected machines.
+    Maps Device IDs to physical locations and metadata.
+    """
+    __tablename__ = "device_registry"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    device_id = Column(String(100), unique=True, index=True)  # e.g. 'HVAC_F1_01'
+    device_name = Column(String(150))                        # e.g. 'Main HVAC Unit Floor 1'
+    category = Column(String(100))                         # e.g. 'HVAC', 'LIGHTING'
+    floor = Column(String(50))
+    room = Column(String(50))
+    is_critical = Column(Boolean, default=False)
+    metadata_json = Column(Text)                            # Extra technical specs

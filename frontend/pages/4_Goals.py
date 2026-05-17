@@ -19,6 +19,7 @@ FRONTEND_DIR = Path(__file__).parent.parent
 DATASETS_DIR = Path(__file__).parent.parent.parent / "datasets" / "demo_scenarios"
 sys.path.insert(0, str(FRONTEND_DIR))
 
+from utils import API_URL
 from components.charts import before_after_chart
 
 from components.styles import inject_styles
@@ -59,13 +60,12 @@ with col_goal:
 # ── Current progress from session data ───────────────────────────────────────
 if st.session_state.get("session_id"):
     try:
-        # Fetch actual energy usage from backend
-        res = requests.get(f"http://127.0.0.1:8000/api/anomalies/{st.session_state['session_id']}")
-        # Actually we want total usage, let's assume we have an endpoint or use the df in session state
-        # For a truly dynamic app, we should have a stats endpoint.
-        # But let's use the df if available, or fetch it.
-        pass
-    except:
+        res = requests.get(f"{API_URL}/data/{st.session_state['session_id']}", timeout=5)
+        if res.status_code == 200:
+            data = res.json().get("data", [])
+            if data:
+                st.session_state.df = pd.DataFrame(data)
+    except requests.RequestException:
         pass
 
 df_main = st.session_state.get("df")
@@ -73,16 +73,22 @@ current_progress = 0.0
 
 if df_main is not None:
     df_prog = pd.DataFrame(df_main).copy()
-    df_prog["timestamp"] = pd.to_datetime(df_prog["timestamp"])
+    try:
+        df_prog["timestamp"] = pd.to_datetime(df_prog["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df_prog["timestamp"] = pd.to_datetime(df_prog["timestamp"], format='mixed', errors='coerce')
     current_progress = float(df_prog["kwh"].sum())
 else:
     # Try to fetch from backend if not in session state
     if st.session_state.get("session_id"):
         try:
-            # Mocking a fetch for now since we don't have a 'total' endpoint, 
-            # but we can use the uploaded data logic.
-            pass
-        except:
+            res = requests.get(f"{API_URL}/data/{st.session_state['session_id']}", timeout=5)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                if data:
+                    df_main = pd.DataFrame(data)
+                    current_progress = float(df_main["kwh"].sum())
+        except requests.RequestException:
             pass
 
 # ── Section 2: Progress bar ───────────────────────────────────────────────────
@@ -137,7 +143,7 @@ if "df" in st.session_state and st.session_state.df is not None:
     
     # Simulate an 'After' state based on the Recommendation Agent's findings
     # This makes it feel much more integrated!
-    recs_res = requests.get(f"http://127.0.0.1:8000/api/recommendations/{st.session_state['session_id']}")
+    recs_res = requests.get(f"{API_URL}/recommendations/{st.session_state['session_id']}")
     if recs_res.status_code == 200:
         recs = recs_res.json()
         if recs:
@@ -151,7 +157,10 @@ if df_goal is None:
         df_goal = pd.read_csv(scenario4_path)
 
 if df_goal is not None:
-    df_goal["timestamp"] = pd.to_datetime(df_goal["timestamp"])
+    try:
+        df_goal["timestamp"] = pd.to_datetime(df_goal["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df_goal["timestamp"] = pd.to_datetime(df_goal["timestamp"], format='mixed', errors='coerce')
     fig_ba = before_after_chart(df_goal)
     st.plotly_chart(fig_ba, use_container_width=True)
 
@@ -187,7 +196,10 @@ streak_dates = []
 
 if df_main is not None:
     df_streak = pd.DataFrame(df_main).copy()
-    df_streak["timestamp"] = pd.to_datetime(df_streak["timestamp"])
+    try:
+        df_streak["timestamp"] = pd.to_datetime(df_streak["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df_streak["timestamp"] = pd.to_datetime(df_streak["timestamp"], format='mixed', errors='coerce')
     daily_kwh = df_streak.groupby(df_streak["timestamp"].dt.date)["kwh"].sum().reset_index()
     daily_kwh.columns = ["date", "kwh"]
     daily_target = monthly_target / 30

@@ -2,13 +2,16 @@ import streamlit as st
 import requests
 import pandas as pd
 import textwrap
+import sys
+import os
 from components.styles import inject_styles
 from components.charts import usage_heatmap, anomaly_chart
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils import API_URL
+
 st.set_page_config(page_title="Device Insights", page_icon="🔌", layout="wide")
 inject_styles()
-
-API_URL = "http://127.0.0.1:8000/api"
 
 st.markdown('<h1 style="margin-bottom:0;">Anomaly Detection Engine</h1>', unsafe_allow_html=True)
 st.markdown('<p style="color:#888; margin-bottom:20px;">Detailed inspection of device-level consumption and detected anomalies.</p>', unsafe_allow_html=True)
@@ -17,8 +20,24 @@ if not st.session_state.get("session_id"):
     st.warning("No active session. Please go to the Dashboard.")
 else:
     # Get all device data for charts
+    if "df" not in st.session_state or st.session_state.df is None:
+        try:
+            data_res = requests.get(f"{API_URL}/data/{st.session_state['session_id']}", timeout=5)
+            if data_res.status_code == 200:
+                data = data_res.json().get("data", [])
+                if data:
+                    st.session_state.df = pd.DataFrame(data)
+        except requests.RequestException:
+            pass
+
     if "df" in st.session_state and st.session_state.df is not None:
         df = pd.DataFrame(st.session_state.df)
+        if "device" not in df.columns and "device_id" in df.columns:
+            df["device"] = df["device_id"]
+        required_cols = {"timestamp", "device", "kwh"}
+        if not required_cols.issubset(df.columns):
+            st.error("Session data must include timestamp, device, and kwh columns.")
+            st.stop()
         devices = df["device"].unique()
         
         selected_device = st.selectbox("Select Device for Analysis", devices)

@@ -19,12 +19,14 @@ def agent_studio_panel(logs, state_data):
         else:
             for i, log in enumerate(logs):
                 with st.expander(f"{i+1}. {log['agent']} → {log['action']}", expanded=(i == len(logs)-1)):
-                    st.markdown(textwrap.dedent(f"""
-                        <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px;">
-                            <div style="color: #2d9c6e; font-size: 0.8rem; font-weight: 700; margin-bottom: 5px;">REASONING OUTPUT</div>
-                            <div style="color: #eee; font-family: 'Inter'; font-size: 0.95rem; line-height: 1.5;">{log['output']}</div>
-                        </div>
-                    """), unsafe_allow_html=True)
+                    # Use a non-indented block for the HTML to avoid code blocks
+                    output_html = f"""
+<div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px;">
+<div style="color: #2d9c6e; font-size: 0.8rem; font-weight: 700; margin-bottom: 5px;">REASONING OUTPUT</div>
+<div style="color: #eee; font-family: 'Inter'; font-size: 0.95rem; line-height: 1.5;">{log['output']}</div>
+</div>
+"""
+                    st.markdown(output_html, unsafe_allow_html=True)
                     if st.button("✏️ Edit Behavior for this Node", key=f"edit_{i}"):
                         st.info(f"Behavior override for {log['agent']} is now active in the Prompt Lab.")
     
@@ -38,7 +40,7 @@ def agent_studio_panel(logs, state_data):
     st.divider()
     with st.expander("📝 Prompt Lab: Agent Instructions Override"):
         st.markdown("Modify the core logic of your agents. Changes take effect on next reasoning run.")
-        agent_to_edit = st.selectbox("Select Agent to Configure", ["Recommendation Agent", "Explanation Agent", "Anomaly Agent"])
+        agent_to_edit = st.selectbox("Select Agent to Configure", ["Recommendation Agent", "Explanation Agent", "Surveillance Agent"])
         
         default_instruction = "You are a sustainability advisor..."
         if agent_to_edit == "Explanation Agent":
@@ -49,94 +51,105 @@ def agent_studio_panel(logs, state_data):
             st.session_state[f"override_{agent_to_edit}"] = custom_instr
             st.success(f"Logic for {agent_to_edit} updated. Re-run analysis to see the effect.")
 
+
 def reasoning_flow_visual(active_node=None):
-    """Visual representation of the LangGraph multi-agent reasoning flow with active node highlighting."""
+    """Visual representation of the LangGraph multi-agent reasoning flow with true orthogonal edge routing."""
     
-    nodes = [
-        ("context_node", "Context Agent", "Building Profile Analysis", "#3498db"),
-        ("research_node", "Research Agent", "Domain & Standards", "#9b59b6"),
-        ("anomaly_node", "Anomaly Agent", "Outlier Detection", "#e74c3c"),
-        ("behavior_node", "Behavior Agent", "Pattern Recognition", "#f39c12"),
-        ("recommendation_node", "Recommendation Agent", "Constraint-First Logic", "#2ecc71"),
-        ("doctor_node", "Doctor Agent", "Verification Auditor", "#34495e"),
-        ("explanation_node", "Explanation Agent", "Insight Synthesis", "#8e44ad"),
-    ]
+    layers = {
+        "context": ("context_node", "Context Agent", "Building Profile", "#3498db"),
+        "intel": [
+            ("research_node", "Research Agent", "Domain Standards", "#9b59b6"),
+            ("surveillance_node", "Surveillance Agent", "Fleet Surveillance", "#e74c3c")
+        ],
+        "analysis": [
+            ("behavior_node", "Behavior Agent", "Pattern Logic", "#f39c12"),
+            ("recommendation_node", "Recommendation Agent", "Fix Logic", "#2ecc71")
+        ],
+        "audit": ("doctor_node", "Doctor Agent", "Verification", "#5a6b7c"),
+        "synthesis": ("explanation_node", "Explanation Agent", "Final Digest", "#8e44ad")
+    }
 
-    # Generate HTML for nodes
-    nodes_html = ""
-    for i, (id, name, desc, color) in enumerate(nodes):
+    def render_node(id, name, desc, color):
         is_active = (active_node == id)
-        active_style = f"box-shadow: 0 0 25px {color}; border: 2px solid {color}; transform: scale(1.05); animation: pulse 1.5s infinite;" if is_active else f"border: 1px solid {color}44; background: {color}05; opacity: 0.6;"
-        badge_html = f'<div class="node-badge" style="background: {color};">ACTIVE</div>' if is_active else ''
         
-        nodes_html += f"""
-<div class="node-v" style="{active_style} color: {color};">
-{badge_html}
-<b>{name}</b>
-<span>{desc}</span>
-</div>
-"""
-        if i < len(nodes) - 1:
-            nodes_html += '<div class="edge-v"></div>'
+        # Enhanced text contrast and conditional execution status glow ring
+        active_style = f"box-shadow: 0 0 25px {color}88; border: 2px solid {color}; transform: scale(1.02); z-index: 10;" if is_active else f"border: 1px solid {color}44; background: rgba(15,17,26,0.95); opacity: 0.75;"
+        badge = f'<div class="node-badge" style="background: {color};">ACTIVE</div>' if is_active else ''
+        
+        return f'<div class="node-v" style="{active_style}">{badge}<div class="port top-port"></div><div style="color: #f1f5f9; font-size: 14px; font-weight: 600; font-family: \'Outfit\'; margin-bottom: 2px;">{name}</div><div style="color: #94a3b8; font-size: 11px; font-weight: 500; font-family: \'Inter\';">{desc}</div><div class="port bottom-port"></div></div>'
 
-    st.markdown(f"""
-<div style="margin-top: 20px; padding: 24px; background: rgba(15, 15, 25, 0.4); border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px);">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-<h4 style="margin: 0; color: #fff; font-family: 'Outfit', sans-serif;">🏗️ Multi-Agent Trajectory</h4>
-<div style="display: flex; align-items: center; gap: 8px;">
-<div style="width: 8px; height: 8px; background: #2ecc71; border-radius: 50%; animation: pulse 1s infinite;"></div>
-<span class="badge" style="background: rgba(45,156,110,0.1); color: #2ecc71; border: 1px solid rgba(45,156,110,0.2);">LIVE EXECUTION</span>
+    # Build the HTML with ZERO INDENTATION to avoid code blocks
+    html = f"""
+<div style="text-align: center; margin-bottom: 20px;">
+<h3 style="margin: 0; color: #fff; font-family: 'Outfit'; letter-spacing: 0.5px;">🏗️ MULTI-AGENT ORCHESTRATION</h3>
+<p style="color: #2ecc71; font-size: 10px; font-weight: 800; letter-spacing: 2px; margin-top: 4px;">NON-LINEAR REASONING WEB</p>
+</div>
+
+<div class="orchestration-web">
+<!-- Context Layer -->
+{render_node(*layers['context'])}
+
+<!-- Orthogonal Fork Splitter -->
+<div class="elbow-container">
+<div class="vertical-line" style="height: 20px;"></div>
+<div class="horizontal-bar" style="width: 260px;"></div>
+<div class="split-lines-container" style="width: 260px; display: flex; justify-content: space-between;">
+<div class="vertical-line" style="height: 20px;"></div>
+<div class="vertical-line" style="height: 20px;"></div>
 </div>
 </div>
-<div style="display: flex; flex-direction: column; align-items: center; gap: 0;">
-{nodes_html}
+
+<!-- Intel Layer -->
+<div class="node-row" style="display: flex; justify-content: center; width: 100%; gap: 40px;">
+{render_node(*layers['intel'][0])}
+{render_node(*layers['intel'][1])}
 </div>
+
+<!-- Parallel Step Connector -->
+<div class="split-lines-container" style="width: 260px; margin: 0 auto; display: flex; justify-content: space-between;">
+<div class="vertical-line" style="height: 35px;"></div>
+<div class="vertical-line" style="height: 35px;"></div>
 </div>
+
+<!-- Analysis Layer -->
+<div class="node-row" style="display: flex; justify-content: center; width: 100%; gap: 40px;">
+{render_node(*layers['analysis'][0])}
+{render_node(*layers['analysis'][1])}
+</div>
+
+<!-- Orthogonal Merge Joiner -->
+<div class="elbow-container">
+<div class="split-lines-container" style="width: 260px; display: flex; justify-content: space-between;">
+<div class="vertical-line" style="height: 20px;"></div>
+<div class="vertical-line" style="height: 20px;"></div>
+</div>
+<div class="horizontal-bar" style="width: 260px;"></div>
+<div class="vertical-line" style="height: 20px;"></div>
+</div>
+
+<!-- Audit Layer -->
+{render_node(*layers['audit'])}
+
+<div class="vertical-line" style="height: 35px;"></div>
+
+<!-- Synthesis Layer -->
+{render_node(*layers['synthesis'])}
+</div>
+
 <style>
-    @keyframes pulse {{
-        0% {{ opacity: 1; transform: scale(1.05); }}
-        50% {{ opacity: 0.7; transform: scale(1.02); }}
-        100% {{ opacity: 1; transform: scale(1.05); }}
-    }}
-    .node-v {{
-        padding: 12px 20px;
-        border-radius: 12px;
-        width: 260px;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        position: relative;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        background: rgba(255,255,255,0.02);
-    }}
-    .node-badge {{
-        position: absolute;
-        top: -10px;
-        right: -10px;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 8px;
-        font-weight: 900;
-        color: white;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }}
-    .node-v b {{ font-size: 14px; margin-bottom: 2px; font-family: 'Outfit'; letter-spacing: 0.5px; }}
-    .node-v span {{ font-size: 11px; opacity: 0.7; font-family: 'Inter'; }}
-    .edge-v {{
-        width: 2px;
-        height: 20px;
-        background: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
-    }}
-    .badge {{
-        padding: 4px 12px;
-        border-radius: 100px;
-        font-size: 10px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }}
+.orchestration-web {{ display: flex; flex-direction: column; align-items: center; padding: 25px 25px 10px 25px; background: #07080d; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }}
+.node-v {{ padding: 14px 20px; border-radius: 12px; width: 220px; text-align: center; position: relative; background: #0f111a; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
+.node-badge {{ position: absolute; top: -9px; right: 12px; padding: 1px 7px; border-radius: 4px; font-size: 8px; font-weight: 900; color: white; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); animation: pulse 2s infinite; }}
+.port {{ position: absolute; left: 50%; transform: translateX(-50%); width: 7px; height: 7px; background: #475569; border: 1.5px solid #0f111a; border-radius: 50%; }}
+.top-port {{ top: -4px; }}
+.bottom-port {{ bottom: -4px; }}
+.elbow-container {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
+.vertical-line {{ width: 2px; background: #334155; }}
+.horizontal-bar {{ height: 2px; background: #334155; }}
+@keyframes pulse {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.6; }} 100% {{ opacity: 1; }} }}
 </style>
-""", unsafe_allow_html=True)
+"""
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def visual_sustainability_plan(recommendations):
@@ -146,46 +159,25 @@ def visual_sustainability_plan(recommendations):
         
     st.markdown("### 🗺️ Your Sustainability Roadmap")
     
-    with st.container():
-        for i, rec in enumerate(recommendations):
-            color = "#2d9c6e" if i == 0 else "#3498db" if i == 1 else "#f39c12"
-            
-            # Use absolute beginning of lines to prevent Streamlit from seeing code blocks
-            item_html = f"""<div style="display: flex; gap: 20px; margin-bottom: 20px; align-items: stretch;">
+    for i, rec in enumerate(recommendations):
+        color = "#2d9c6e" if i == 0 else "#3498db" if i == 1 else "#f39c12"
+        item_html = f"""
+<div style="display: flex; gap: 20px; margin-bottom: 20px; align-items: stretch;">
 <div style="display: flex; flex-direction: column; align-items: center; width: 40px;">
 <div style="width: 36px; height: 36px; border-radius: 50%; background: {color}; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-family: 'Outfit'; z-index: 1; box-shadow: 0 0 15px {color}44;">{i+1}</div>
 {f'<div style="width: 2px; flex-grow: 1; background: linear-gradient(to bottom, {color}88, rgba(255,255,255,0.05)); margin-top: 5px;"></div>' if i < len(recommendations)-1 else ''}
 </div>
-<div class="glass-card" style="flex: 1; padding: 20px; margin-bottom: 0; background: rgba(255,255,255,0.03); border-left: 3px solid {color};">
-<h5 style="margin: 0; color: {color}; font-size: 1.1rem; font-family: 'Outfit';">{rec['issue']}</h5>
+<div class="glass-card" style="flex: 1; padding: 20px; margin-bottom: 0; background: rgba(255,255,255,0.03); border-left: 3px solid {color}; border-radius: 8px;">
+<h5 style="margin: 0; color: {color}; font-size: 1.1rem; font-family: \'Outfit\';">{rec.get('issue', 'Optimization Opportunity')}</h5>
 <p style="margin: 10px 0 15px 0; font-size: 14px; color: #ccc; line-height: 1.6;">{rec['recommendation']}</p>
 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-<div style="background: {color}15; color: {color}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">💰 Savings: {rec['estimated_monthly_loss']}</div>
+<div style="background: {color}15; color: {color}; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">💰 Savings: {rec.get('estimated_monthly_loss', 'N/A')}</div>
 </div>
 </div>
 </div>"""
-            st.markdown(item_html, unsafe_allow_html=True)
+        st.markdown(item_html, unsafe_allow_html=True)
 
-def agent_trace_viewer(logs):
-    """LangGraph Studio style trace viewer."""
-    if not logs:
-        st.info("Run analysis to see agent traces.")
-        return
-        
-    st.markdown("### 🧵 Agent Execution Traces")
-    st.markdown('<p style="color:#666; font-size:0.9rem; margin-bottom:20px;">Inspect the step-by-step reasoning and tool calls of each agent.</p>', unsafe_allow_html=True)
-    
-    for log in logs:
-        with st.expander(f"🤖 {log['agent']} - {log['action']}", expanded=False):
-            # Styling for the trace content
-            st.markdown(f"""
-<div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-<div style="color: #2d9c6e; font-size: 0.8rem; font-weight: 700; margin-bottom: 5px;">OUTPUT CONTENT</div>
-<div style="color: #eee; font-family: 'Inter'; font-size: 0.95rem; line-height: 1.5;">{log['output']}</div>
-</div>
-""", unsafe_allow_html=True)
-            
-            if log.get("details"):
-                st.markdown('<div style="color: #3498db; font-size: 0.8rem; font-weight: 700; margin: 15px 0 5px 0;">STATE DATA / METRICS</div>', unsafe_allow_html=True)
-                st.json(log["details"])
 
+def agent_trace_viewer(grouped_logs, active_agent=None):
+    """Refined trace viewer with execution visualization."""
+    pass

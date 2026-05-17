@@ -1,0 +1,23 @@
+{
+  "DEV_HVAC_01": {
+    "name": "Primary HVAC Chiller",
+    "type": "HVAC",
+    "location": "Roof Top",
+    "floor": "Floor 5",
+    "criticality": "high"
+  },
+  "DEV_LIGHT_01": {
+    "name": "Corridor Smart Lighting",
+    "type": "Lighting",
+    "location": "East Wing",
+    "floor": "Floor 2",
+    "criticality": "low"
+  },
+  "DEV_SRV_01": {
+    "name": "Main Data Server Rack",
+    "type": "IT",
+    "location": "Server Room",
+    "floor": "Basement",
+    "criticality": "critical"
+  }
+}

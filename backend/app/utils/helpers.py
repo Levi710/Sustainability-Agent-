@@ -7,7 +7,10 @@ from datetime import datetime
 
 def parse_timestamp(ts_str: str) -> datetime:
     """Parse ISO timestamp string to datetime object."""
-    return pd.to_datetime(ts_str).to_pydatetime()
+    try:
+        return pd.to_datetime(ts_str, format='%Y-%m-%d %H:%M:%S.%f').to_pydatetime()
+    except Exception:
+        return pd.to_datetime(ts_str, format='mixed', errors='coerce').to_pydatetime()
 
 
 def safe_round(value: float, decimals: int = 2) -> float:

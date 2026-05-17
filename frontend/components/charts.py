@@ -39,7 +39,10 @@ def _apply_base_layout(fig: go.Figure, title: str = "") -> go.Figure:
 def usage_line_chart(df: pd.DataFrame) -> go.Figure:
     """30-day daily kWh consumption line chart."""
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='mixed', errors='coerce')
     daily = df.groupby(df["timestamp"].dt.date)["kwh"].sum().reset_index()
     daily.columns = ["date", "kwh"]
 
@@ -65,7 +68,10 @@ def usage_line_chart(df: pd.DataFrame) -> go.Figure:
 def usage_heatmap(df: pd.DataFrame, device: str) -> go.Figure:
     """Hour × Date heatmap for a specific device."""
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='mixed', errors='coerce')
     device_df = df[df["device"] == device].copy()
 
     device_df["date"] = device_df["timestamp"].dt.date.astype(str)
@@ -92,7 +98,10 @@ def usage_heatmap(df: pd.DataFrame, device: str) -> go.Figure:
 def anomaly_chart(df: pd.DataFrame, anomalies: list) -> go.Figure:
     """Line chart with red dots marking anomaly timestamps."""
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='mixed', errors='coerce')
     daily = df.groupby(df["timestamp"].dt.date)["kwh"].sum().reset_index()
     daily.columns = ["date", "kwh"]
 
@@ -110,7 +119,10 @@ def anomaly_chart(df: pd.DataFrame, anomalies: list) -> go.Figure:
     # Anomaly dots
     if anomalies:
         anom_df = pd.DataFrame(anomalies)
-        anom_df["timestamp"] = pd.to_datetime(anom_df["timestamp"])
+        try:
+            anom_df["timestamp"] = pd.to_datetime(anom_df["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+        except Exception:
+            anom_df["timestamp"] = pd.to_datetime(anom_df["timestamp"], format='mixed', errors='coerce')
         anom_df["date"] = anom_df["timestamp"].dt.date
         anom_grouped = anom_df.groupby("date")["kwh"].sum().reset_index()
 
@@ -140,7 +152,10 @@ def _get_tariff_zone(hour: int) -> str:
 def tariff_pie(df: pd.DataFrame) -> go.Figure:
     """Pie chart: peak / shoulder / off-peak kWh distribution."""
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='mixed', errors='coerce')
     df["hour"] = df["timestamp"].dt.hour
     if "tariff_zone" not in df.columns:
         df["tariff_zone"] = df["hour"].apply(_get_tariff_zone)
@@ -189,7 +204,10 @@ def simulation_bar(current: float, projected: float) -> go.Figure:
 def before_after_chart(df: pd.DataFrame) -> go.Figure:
     """Split line chart: first 15 days vs last 15 days of usage."""
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    try:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='%Y-%m-%d %H:%M:%S.%f')
+    except Exception:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], format='mixed', errors='coerce')
     df["date"] = df["timestamp"].dt.date
     df = df.sort_values("timestamp")
 

@@ -5,8 +5,8 @@ import json
 import os
 
 from app.database.connection import get_db
-from app.database.models import BuildingProfile, Anomaly, Recommendation, Recommendation as RecModel
-from app.agents.pipeline import _llm_call, _get_api_key, _raw_llm_call
+from app.database.models import AgentLog, BuildingProfile, Anomaly, DoctorAudit, Recommendation as RecModel, SessionReport
+from app.agents.pipeline import get_active_node, _raw_llm_call
 
 router = APIRouter()
 
@@ -38,6 +38,26 @@ async def chat_with_agents(req: ChatRequest, db: Session = Depends(get_db)):
         
     anomalies = db.query(Anomaly).filter(Anomaly.session_id == req.session_id).all()
     recommendations = db.query(RecModel).filter(RecModel.session_id == req.session_id).all()
+    logs = (
+        db.query(AgentLog)
+        .filter(AgentLog.session_id == req.session_id)
+        .order_by(AgentLog.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    audits = (
+        db.query(DoctorAudit)
+        .filter(DoctorAudit.session_id == req.session_id)
+        .order_by(DoctorAudit.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    report = (
+        db.query(SessionReport)
+        .filter(SessionReport.session_id == req.session_id)
+        .order_by(SessionReport.created_at.desc())
+        .first()
+    )
     
     context_data = {
         "building_profile": {
@@ -50,20 +70,94 @@ async def chat_with_agents(req: ChatRequest, db: Session = Depends(get_db)):
             {"device": a.device, "reason": a.reason, "severity": a.severity} for a in anomalies[:10]
         ],
         "active_recommendations": [
-            {"issue": r.issue, "recommendation": r.recommendation, "savings": r.estimated_monthly_loss} for r in recommendations
-        ]
+            {
+                "issue": r.issue,
+                "recommendation": r.recommendation,
+                "savings": r.estimated_monthly_loss,
+                "control_action": r.control_action,
+                "reasoning_proof": r.reasoning_proof,
+            } for r in recommendations
+        ],
+        "doctor_audits": [
+            {"device": a.device, "status": a.verification_status, "notes": a.doctor_notes}
+            for a in audits
+        ],
+        "recent_agent_logs": [
+            {
+                "agent": l.agent_name,
+                "device": l.device,
+                "action": l.action,
+                "output": l.output,
+                "timestamp": str(l.created_at),
+            }
+            for l in logs
+        ],
+        "active_node": get_active_node(req.session_id),
+        "latest_report": report.final_explanation if report else "",
     }
     
     context_str = json.dumps(context_data, indent=2)
     system_prompt = CHAT_SYSTEM_PROMPT.format(context=context_str)
     
-    # 2. Call LLM
-    api_key = _get_api_key()
-    if not api_key:
-        return {"response": "I'm currently in offline mode. Based on your profile, I recommend following the generated roadmap. (API Key missing for live chat)"}
-        
-    try:
-        response = _raw_llm_call(api_key, system_prompt, req.message)
-        return {"response": response}
-    except Exception as e:
-        return {"response": f"I encountered an error conferring with the agents: {str(e)}"}
+    # 2. Call LLM — try all available providers
+    import os
+    providers = []
+    groq_key = os.getenv("GROQ_API_KEY")
+    nvidia_key = os.getenv("NVIDIA_API_KEY")
+    if groq_key and groq_key != "your_key_here":
+        providers.append(("groq", groq_key))
+    if nvidia_key and nvidia_key != "your_key_here":
+        providers.append(("nvidia", nvidia_key))
+    
+    def local_response(reason: str):
+        msg = req.message.lower()
+        agent_filter = None
+        for label in ["doctor", "anomaly", "context", "research", "recommendation", "surveillance", "explanation"]:
+            if label in msg:
+                agent_filter = label
+                break
+
+        selected_logs = logs
+        if agent_filter:
+            selected_logs = [l for l in logs if l.agent_name and agent_filter in l.agent_name.lower()]
+
+        lines = [
+            reason,
+            f"Current active node: {get_active_node(req.session_id)}.",
+        ]
+        lines.append(
+            f"Latest {agent_filter.title()} Agent context:"
+            if agent_filter else
+            "Latest coordination context:"
+        )
+
+        if selected_logs:
+            for log in selected_logs[:5]:
+                lines.append(f"- {log.agent_name}: {log.action} -> {log.output}")
+        else:
+            lines.append("- No matching agent logs are available yet.")
+
+        if audits and ("doctor" in msg or "fix" in msg or "verify" in msg):
+            lines.append("Doctor audit evidence:")
+            for audit in audits[:5]:
+                lines.append(f"- {audit.device}: {audit.verification_status}. {audit.doctor_notes}")
+
+        if report and ("explain" in msg or "report" in msg or "summary" in msg):
+            lines.append("Latest explanation excerpt:")
+            lines.append(report.final_explanation[:1200])
+
+        return {"response": "\n".join(lines)}
+
+    if not providers:
+        return local_response("Live chat is in offline mode because no GROQ_API_KEY or NVIDIA_API_KEY is configured.")
+    
+    provider_errors = []
+    for provider_info in providers:
+        try:
+            response = _raw_llm_call(provider_info, system_prompt, req.message)
+            return {"response": response}
+        except Exception as e:
+            provider_errors.append(f"{provider_info[0]}: {type(e).__name__} - {e}")
+            continue
+    
+    return local_response("Live AI provider calls failed. " + " | ".join(provider_errors[:2]))

@@ -36,6 +36,18 @@ def startup():
 def health():
     return {"status": "ok", "service": "SustainAI API V2"}
 
+from app.services.config import settings
+
+@app.get("/api/config")
+def get_config():
+    return {"auto_fix": settings.auto_fix}
+
+@app.post("/api/config/toggle")
+def toggle_config(payload: dict):
+    if "auto_fix" in payload:
+        settings.auto_fix = bool(payload["auto_fix"])
+    return {"status": "updated", "auto_fix": settings.auto_fix}
+
 @app.get("/")
 def root():
     return {

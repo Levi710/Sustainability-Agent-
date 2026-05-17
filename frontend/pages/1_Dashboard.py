@@ -1,389 +1,301 @@
 import streamlit as st
 import pandas as pd
 import requests
-import textwrap
 import json
-from components.styles import inject_styles
-from components.visual_plan import reasoning_flow_visual, visual_sustainability_plan, agent_trace_viewer, agent_studio_panel
+import time
+import sys
+import os
+from datetime import datetime
 
-st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
-inject_styles()
-API_URL = "http://127.0.0.1:8000/api"
-live_mode = False
+# Import components and utils
+sys.path.append(os.path.dirname(__file__))
+from utils import API_BASE_URL, init_state, set_page
+from components.visual_plan import reasoning_flow_visual, visual_sustainability_plan, agent_studio_panel
 
-# Sidebar Branding
-st.sidebar.markdown("""
-    <div style="text-align: center; padding: 20px;">
-        <h2 style="color: #2d9c6e; margin-bottom: 0;">SustainAI</h2>
-        <p style="color: #888; font-size: 0.8rem;">Multi-Agent Intelligence</p>
-    </div>
-""", unsafe_allow_html=True)
+# Configuration
+API_URL = API_BASE_URL
 
-if "session_id" not in st.session_state:
-    st.session_state["session_id"] = None
-if "analysis_complete" not in st.session_state:
-    st.session_state["analysis_complete"] = False
+def run_dashboard():
+    # 1. State Guard
+    init_state()
+    if "live_mode" not in st.session_state: st.session_state["live_mode"] = True
+    if "analysis_complete" not in st.session_state: st.session_state["analysis_complete"] = False
+    if "analysis_in_progress" not in st.session_state: st.session_state["analysis_in_progress"] = False
 
-st.markdown('<h1 style="margin-bottom:0;">Step 1: Building Profile & Context</h1>', unsafe_allow_html=True)
-st.markdown("""
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <span class="badge" style="background: rgba(45,156,110,0.1); color: #2d9c6e; border: 1px solid rgba(45,156,110,0.2);">● Backend Connected</span>
-        <span class="badge" style="background: rgba(52,152,219,0.1); color: #3498db; border: 1px solid rgba(52,152,219,0.2);">⚙️ Automation Engine Active</span>
-        <span class="badge" style="background: rgba(155,89,182,0.1); color: #9b59b6; border: 1px solid rgba(155,89,182,0.2);">🤖 Multi-Agent Logic Ready</span>
-    </div>
-    <p style="color:#888;">Define your building characteristics to guide AI reasoning.</p>
-""", unsafe_allow_html=True)
+    st.set_page_config(page_title="SustainAI Studio V3", layout="wide", initial_sidebar_state="expanded")
 
-with st.form("building_profile_form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        building_type = st.selectbox("Building Type", ["college", "house", "gov_office", "commercial_firm", "hospital", "data_center"])
-        building_name = st.text_input("Building Name", value="Demo Building")
-        city = st.text_input("City", value="Delhi")
-        state = st.text_input("State", value="Delhi")
-    with col2:
-        floors = st.number_input("Number of Floors", min_value=1, value=5)
-        occupancy_hours = st.text_input("Occupancy Hours (e.g. 9AM-6PM)", value="9AM-6PM")
-        critical_devices = st.text_area("Critical Devices (one per line)", value="Server_Room_AC")
-        special_constraints = st.text_area("Special Constraints")
+    # 2. Universal Premium CSS
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;600&display=swap');
+    .stApp { background-color: #0f111a; color: #f1f5f9; font-family: 'Inter', sans-serif; }
+    h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 800; letter-spacing: -0.5px; }
+    .glass-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 15px; }
+    .heartbeat { animation: pulse 1.5s infinite; color: #2ecc71; font-weight: 800; font-size: 0.75rem; letter-spacing: 1px; }
+    @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- SIDEBAR ---
+    with st.sidebar:
+        st.markdown("<h2 style='color: #2d9c6e; margin-bottom:0;'>SustainAI</h2>", unsafe_allow_html=True)
         
-    submit = st.form_submit_button("Save Profile & Initialize Session")
-
-if submit:
-    res = requests.post(f"{API_URL}/building-profile", data={
-        "building_type": building_type,
-        "building_name": building_name,
-        "city": city,
-        "state": state,
-        "floors": floors,
-        "occupancy_hours": occupancy_hours,
-        "critical_devices": critical_devices,
-        "special_constraints": special_constraints
-    })
-    if res.status_code == 200:
-        data = res.json()
-        st.session_state["session_id"] = data["session_id"]
-        st.session_state["building_profile"] = {
-            "building_type": building_type,
-            "building_name": building_name,
-            "critical_devices": critical_devices
-        }
-        st.success(f"Profile saved! Session ID: {data['session_id']}")
-    else:
-        st.error("Failed to save profile")
-
-st.divider()
-st.markdown('<h1 style="margin-bottom:0;">Step 2: Historical Data Analysis</h1>', unsafe_allow_html=True)
-st.markdown('<p style="color:#888; margin-bottom:20px;">Upload consumption data to trigger the multi-agent pipeline.</p>', unsafe_allow_html=True)
-
-if st.session_state.get("session_id"):
-    uploaded_file = st.file_uploader("Upload 30-Day Historical CSV", type=["csv"])
-    if uploaded_file:
-        if st.button("Upload & Analyze"):
-            with st.spinner("Uploading historical data..."):
-                res = requests.post(
-                    f"{API_URL}/upload/csv",
-                    data={"session_id": st.session_state["session_id"]},
-                    files={"file": uploaded_file}
-                )
-            if res.status_code == 200:
-                st.success("Data uploaded. Running reasoning pipeline...")
-                with st.spinner("AI is analyzing context, anomalies, and behaviors..."):
-                    overrides = {
-                        "Recommendation Agent": st.session_state.get("override_Recommendation Agent"),
-                        "Explanation Agent": st.session_state.get("override_Explanation Agent"),
-                        "Anomaly Agent": st.session_state.get("override_Anomaly Agent")
-                    }
-                    overrides = {k: v for k, v in overrides.items() if v}
-                    
-                    ana_res = requests.post(
-                        f"{API_URL}/analyze",
-                        json={
-                            "session_id": st.session_state["session_id"],
-                            "prompt_overrides": overrides
-                        }
-                    )
-                if ana_res.status_code == 200:
-                    data = ana_res.json()
-                    st.session_state["analysis_complete"] = True
-                    st.session_state["agent_logs"] = data.get("agent_logs", [])
-                    st.session_state["analysis_report"] = data.get("report", {})
-                    
-                    # Update local data for charts (Fetch FULL history for sync)
-                    usage_res = requests.get(f"{API_URL}/data/{st.session_state['session_id']}")
-                    if usage_res.status_code == 200:
-                        st.session_state["df"] = usage_res.json().get("data", [])
-                    else:
-                        # Fallback to latest upload if fetch fails
-                        uploaded_file.seek(0)
-                        st.session_state["df"] = pd.read_csv(uploaded_file).to_dict('records')
-                    
-                    st.success("Analysis complete!")
-                    st.rerun()
-                else:
-                    st.error(f"Analysis failed: {ana_res.text}")
-
-    if st.session_state.get("analysis_complete"):
-        st.divider()
-        report = st.session_state.get("analysis_report", {})
-        
-        st.markdown(f"""
-<div class="glass-card" style="margin-top: 24px; border-top: 4px solid #2d9c6e;">
-<h3 style="margin-top: 0; color: #2d9c6e; font-family: 'Outfit';">📋 Agent Executive Summary</h3>
-<div style="font-size: 1.1rem; line-height: 1.7; color: #eee; font-family: 'Inter';">
-{report.get("final_explanation", "No explanation available.")}
-</div>
-</div>
-""", unsafe_allow_html=True)
-        
-        tab_overview, tab_traces, tab_chat, tab_studio = st.tabs(["📊 Reasoning Overview", "🧵 Trajectory Trace", "💬 Expert Consultation", "🧪 Agent Studio"])
-        
-        with tab_overview:
-            col_main, col_side = st.columns([2, 1])
-            
-            with col_main:
-                st.markdown('<h2 style="margin-top:0;">Sustainability Roadmap</h2>', unsafe_allow_html=True)
-                
-                # Interactive What-If Section
-                st.markdown("""
-<div style="background: rgba(45,156,110,0.05); padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px dashed #2d9c6e;">
-<h4 style="margin-top:0; color: #2d9c6e;">🛠️ Interactive What-If Simulator</h4>
-<p style="font-size: 0.9rem; color: #888;">Toggle recommendations to see projected monthly savings impact.</p>
-</div>
-""", unsafe_allow_html=True)
-                
-                # Live Monitoring Toggle
-                live_mode = st.sidebar.checkbox("📡 Live Dashboard Sync", value=False)
-                active_agent_node = None
-                if live_mode:
-                    st.sidebar.info("Dashboard is auto-syncing with AI agents every 5s.")
-                    try:
-                        status_res = requests.get(f"{API_URL}/telemetry/status/{st.session_state['session_id']}")
-                        if status_res.status_code == 200:
-                            active_agent_node = status_res.json().get("active_node")
-                    except:
-                        pass
-
-                # Intelligent Grouping Logic
-                def get_category(issue):
-                    issue = issue.lower()
-                    if any(x in issue for x in ["ac", "hvac", "chiller", "cooling"]): return "❄️ HVAC & Cooling"
-                    if any(x in issue for x in ["light", "bulb", "led", "lamp"]): return "💡 Lighting Systems"
-                    if any(x in issue for x in ["pc", "computer", "server", "ups"]): return "🖥️ IT & Electronics"
-                    return "🛠️ General Maintenance"
-
-                try:
-                    res_recs = requests.get(f"{API_URL}/recommendations/{st.session_state['session_id']}")
-                    if res_recs.status_code == 200:
-                        recs = res_recs.json()
-                        
-                        # Fetch intelligence (logs and audits) for all tabs
-                        intel_data = {"agent_logs": [], "doctor_audits": []}
-                        try:
-                            intel_res = requests.get(f"{API_URL}/intelligence/{st.session_state['session_id']}")
-                            if intel_res.status_code == 200:
-                                intel_data = intel_res.json()
-                        except:
-                            pass
-
-                        # Tabs for cleaner navigation
-                        tab_priority, tab_assets, tab_audit = st.tabs(["🚀 Priority Actions", "🏢 Asset Classes", "🏥 Audit Trail"])
-                        
-                        with tab_priority:
-                            # ... (baseline/live split)
-                            baseline_recs = [r for r in recs if r.get('triggered_by') != 'telemetry_auto']
-                            live_recs = [r for r in recs if r.get('triggered_by') == 'telemetry_auto']
-
-                            if live_mode:
-                                st.write("### 📡 Live Autonomous Interventions")
-                                if live_recs:
-                                    for i, r in enumerate(reversed(live_recs[-3:])):
-                                        with st.expander(f"⚡ LIVE ACTION: {r['issue']}", expanded=True):
-                                            st.success(f"**Verification Status:** {r.get('confidence', 0)*100:.0f}% Confidence")
-                                            st.markdown(f"**Reasoning Proof:** {r.get('reasoning_proof')}")
-                                            st.code(f"IoT Command: {r.get('control_action')}", language="bash")
-                                else:
-                                    st.info("Watching sensors... No live intervention required yet.")
-                                st.divider()
-                            
-                            st.write("### 🏢 Baseline Strategic Plan")
-                            # De-duplicate issues to show only the latest strategy per asset
-                            unique_baseline = []
-                            seen_issues = set()
-                            for r in baseline_recs:
-                                if r['issue'] not in seen_issues:
-                                    unique_baseline.append(r)
-                                    seen_issues.add(r['issue'])
-
-                            if unique_baseline:
-                                for i, r in enumerate(unique_baseline[:3]):
-                                    with st.expander(f"📋 STRATEGY: {r['issue']}", expanded=(not live_mode and i==0)):
-                                        st.markdown(f"**Recommendation:** {r.get('recommendation')}")
-                                        st.info(f"**Impact:** {r.get('estimated_monthly_loss')} potential monthly savings")
-                            else:
-                                st.info("Run Initial Analysis to generate a baseline strategy.")
-                            
-                            if not live_mode:
-                                st.caption("💡 *System is in 'Default Mode'. Strategic plan is based on historical patterns. Enable 'Live Sync' to see real-time corrections.*")
-                        
-                        with tab_assets:
-                            st.write("### Asset Performance Hub")
-                            # Categorize all recommendations
-                            categories = {}
-                            for r in recs:
-                                cat = get_category(r['issue'])
-                                if cat not in categories: categories[cat] = []
-                                categories[cat].append(r)
-                            
-                            for cat, items in categories.items():
-                                with st.expander(f"{cat} ({len(items)} issues detected)"):
-                                    for i, r in enumerate(items):
-                                        st.markdown(f"**{r['issue']}**")
-                                        st.caption(f"Reason: {r.get('reason', 'N/A')}")
-                                        st.markdown("---")
-
-                        with tab_audit:
-                            st.write("### Verification Log")
-                            audits = intel_data.get("doctor_audits", [])
-                            if audits:
-                                for a in audits[:15]:
-                                    status = a.get('verification_status', 'PENDING')
-                                    st.write(f"[{status}] {a.get('device')} - {a.get('doctor_notes')}")
-                            else:
-                                st.info("No audit logs yet.")
-
-                        visual_sustainability_plan(baseline_recs)
-                except Exception as e:
-                    st.error(f"Error loading grouped roadmap: {e}")
-
-
-            with col_side:
-                st.markdown('<h2 style="margin-top:0;">Anomaly Summary</h2>', unsafe_allow_html=True)
-                anom_res = requests.get(f"{API_URL}/anomalies/{st.session_state['session_id']}")
-                if anom_res.status_code == 200:
-                    anoms = anom_res.json()
-                    if not anoms:
-                        st.info("No anomalies detected.")
-                    else:
-                        st.markdown(f"**{len(anoms)} anomalies found**")
-                        
-                        search_q = st.text_input("🔍 Search Anomalies", placeholder="e.g. HVAC")
-                        filtered_anoms = [a for a in anoms if search_q.lower() in a['device'].lower() or search_q.lower() in a['reason'].lower()]
-                        
-                        # Show top 4
-                        for a in filtered_anoms[:4]:
-                            color = "#e74c3c" if a['severity'] == 'high' else "#f39c12"
-                            st.markdown(textwrap.dedent(f"""
-                                <div style="padding: 10px; border-left: 3px solid {color}; background: rgba(255,255,255,0.02); margin-bottom: 8px; border-radius: 4px;">
-                                    <div style="font-size: 13px; font-weight: 700; color: {color};">{a['device']}</div>
-                                    <div style="font-size: 12px; margin-top: 4px;">{a['reason']}</div>
-                                </div>
-                            """), unsafe_allow_html=True)
-                            
-                        if len(filtered_anoms) > 4:
-                            with st.expander(f"View {len(filtered_anoms)-4} More Anomalies"):
-                                for a in filtered_anoms[4:]:
-                                    color = "#e74c3c" if a['severity'] == 'high' else "#f39c12"
-                                    st.markdown(textwrap.dedent(f"""
-                                        <div style="padding: 10px; border-left: 3px solid {color}; background: rgba(255,255,255,0.02); margin-bottom: 8px; border-radius: 4px;">
-                                            <div style="font-size: 13px; font-weight: 700; color: {color};">{a['device']}</div>
-                                            <div style="font-size: 12px; margin-top: 4px;">{a['reason']}</div>
-                                        </div>
-                                    """), unsafe_allow_html=True)
-                
-            with st.sidebar:
-                st.divider()
-                st.subheader("🛡️ System Resilience")
-                
-                # Determine status from latest recommendation metadata
-                is_backup = False
-                try:
-                    res = requests.get(f"{API_URL}/recommendations/{st.session_state['session_id']}")
-                    if res.status_code == 200 and res.json():
-                        latest = res.json()[-1]
-                        if "Static Memory" in latest.get('reasoning_proof', ''):
-                            is_backup = True
-                except:
-                    pass
-
-                if is_backup:
-                    st.warning("🔄 MODE: STATIC MEMORY")
-                    st.caption("AI connection lost. Replaying last 50 verified decisions for grid safety.")
-                else:
-                    st.success("🟢 MODE: LIVE AI ACTIVE")
-                    st.caption("Deep reasoning agents are online via Groq/NVIDIA.")
-                
-                st.divider()
-
-                st.markdown("### 🤖 Live Agent Activity")
-                tel_recs_res = requests.get(f"{API_URL}/recommendations/{st.session_state['session_id']}")
-                if tel_recs_res.status_code == 200:
-                    tel_recs = [r for r in tel_recs_res.json() if r['triggered_by'] == 'telemetry_auto']
-                    if tel_recs:
-                        for tr in tel_recs[:5]:
-                            st.markdown(textwrap.dedent(f"""
-                                <div style="background: rgba(45,156,110,0.1); padding: 10px; border-radius: 8px; border-left: 4px solid #2d9c6e; margin-bottom: 10px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold; color: #2d9c6e;">AUTO-ACTION</span>
-                                        <span style="font-size: 10px; opacity: 0.6;">JUST NOW</span>
-                                    </div>
-                                    <div style="font-size: 14px; margin: 5px 0;">{tr['issue']}</div>
-                                    <code style="font-size: 11px;">{tr.get('control_action', 'SET_STATE:OPTIMIZED')}</code>
-                                </div>
-                            """), unsafe_allow_html=True)
-                    else:
-                        st.info("Agent is monitoring. Start Telemetry to see real-time corrections.")
-
-                st.divider()
-                if st.button("🔄 Reset & Fork Reasoning"):
-                    st.session_state["analysis_complete"] = False
-                    st.rerun()
-
-        with tab_traces:
-            reasoning_flow_visual(active_node=active_agent_node)
-            agent_trace_viewer(intel_data.get("agent_logs", []))
-
-        with tab_chat:
-            # ... (chat logic)
-            st.markdown("### 💬 Expert Consultation")
-            
-            # Show latest proofs to prove communication
-            recs_for_chat_res = requests.get(f"{API_URL}/recommendations/{st.session_state['session_id']}")
-            if recs_for_chat_res.status_code == 200:
-                recs_for_chat = recs_for_chat_res.json()
-                if recs_for_chat:
-                    with st.expander("📝 Latest Agent Proofs (Current Context)", expanded=False):
-                        for r in recs_for_chat[:2]:
-                            st.caption(f"**{r['issue']}**: {r.get('reasoning_proof')}")
-
-            if "chat_messages" not in st.session_state:
-                st.session_state.chat_messages = []
-            for msg in st.session_state.chat_messages:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
-            if prompt := st.chat_input("Ask about your sustainability plan..."):
-                st.session_state.chat_messages.append({"role": "user", "content": prompt})
-                with st.chat_message("user"):
-                    st.markdown(prompt)
-                with st.chat_message("assistant"):
-                    with st.spinner("Agents conferring..."):
-                        chat_res = requests.post(f"{API_URL}/chat", json={"session_id": st.session_state["session_id"], "message": prompt})
-                        response = chat_res.json().get("response") if chat_res.status_code == 200 else "Error."
-                        st.markdown(response)
-                        st.session_state.chat_messages.append({"role": "assistant", "content": response})
-
-        with tab_studio:
-            current_logs = intel_data.get("agent_logs", [])
-            state_to_inspect = {
-                "building_profile": st.session_state.get("building_profile"),
-                "agent_logs": current_logs
-            }
-            agent_studio_panel(current_logs, state_to_inspect)
-
-    # Final live sync trigger
-    if live_mode:
+        # Check health every 15 seconds to avoid blocking the main UI thread on every tick
         import time
-        time.sleep(5)
-        st.rerun()
-else:
-    st.warning("Please initialize a Building Profile to start.")
+        now_ts = time.time()
+        if "api_online" not in st.session_state or now_ts - st.session_state.get("last_health_check", 0) > 15:
+            st.session_state["api_online"] = False
+            try:
+                if requests.get(f"{API_URL}/health", timeout=1).status_code == 200:
+                    st.session_state["api_online"] = True
+            except:
+                pass
+            st.session_state["last_health_check"] = now_ts
+        api_online = st.session_state["api_online"]
+        
+        if api_online: st.success("🟢 CORE ENGINE ONLINE")
+        else: st.error("🔴 CORE ENGINE OFFLINE")
+        
+        st.divider()
+        st.subheader("🏢 Building Setup")
+        b_name = st.text_input("Facility Name", "ABB Innovation Hub")
+        b_type = st.selectbox("Infrastructure Type", ["Manufacturing", "Hospital", "College", "Institute", "Office", "Data Center", "Theater", "House"])
+        critical_devices = st.text_area(
+            "Protected / Critical Devices",
+            "DEV_SRV_01\nEmergency_Ward\nICU_HVAC",
+            help="One per line. Agents must not reduce or shut down these systems."
+        )
+        constraints = st.text_area(
+            "Operating Constraints",
+            "Do not alter emergency, server, ICU, or safety-critical systems without manual approval."
+        )
+        
+        if st.button("Initialize Studio Session", use_container_width=True):
+            payload = {"building_type": b_type, "building_name": b_name, "city": "Remote", "state": "Remote", "floors": 1, "occupancy_hours": "24/7", "critical_devices": critical_devices, "special_constraints": constraints}
+            try:
+                r = requests.post(f"{API_URL}/api/building-profile", data=payload, timeout=5)
+                if r.status_code == 200:
+                    st.session_state["session_id"] = r.json()["session_id"]
+                    st.session_state["building_profile"] = payload
+                    st.success("Session Locked!")
+                    st.rerun()
+                else:
+                    st.error(f"API Error ({r.status_code}): {r.text}")
+            except Exception as e:
+                st.error(f"Connection Failed: {type(e).__name__} - {str(e)}")
+
+    if not st.session_state.get("session_id"):
+        st.warning("Please click 'Initialize Studio Session' in the sidebar to enter the dashboard.")
+        return
+
+    # Header & Global Controls
+    col_h1, col_h2 = st.columns([3, 1])
+    with col_h1:
+        st.title(f"🚀 {st.session_state['building_profile']['building_name']}")
+    with col_h2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.session_state["live_mode"] = st.toggle("📡 Live Dashboard Sync", value=st.session_state["live_mode"])
+        if st.session_state["live_mode"]: st.markdown("<div class='heartbeat'>● ANALYTICS STREAM ACTIVE</div>", unsafe_allow_html=True)
+
+    # --- UNIFIED DASHBOARD STATE FETCH ---
+    dashboard_data = {"recommendations": [], "anomalies": [], "logs": [], "audits": [], "report": {}, "active_node": "Idle", "control_signals": []}
+    if st.session_state.get("session_id"):
+        try:
+            res = requests.get(f"{API_URL}/api/dashboard-state/{st.session_state['session_id']}")
+            if res.status_code == 200: 
+                dashboard_data = res.json()
+        except: pass
+
+    active_node = dashboard_data.get("active_node", "Idle")
+
+    # If the backend is active, we force "analysis_in_progress" to true
+    if active_node not in ["Idle", "Reasoning Failed", "System Offline"]:
+        st.session_state["analysis_in_progress"] = True
+    else:
+        # If it was in progress, we only set it to completed if the thread had time to boot
+        if st.session_state.get("analysis_in_progress"):
+            elapsed = time.time() - st.session_state.get("analysis_start_time", 0)
+            if elapsed > 4.0:
+                st.session_state["analysis_in_progress"] = False
+                st.session_state["analysis_complete"] = True
+                st.rerun()
+
+    # Ingestion Block
+    with st.expander("📂 Data Ingestion (Manual Upload)", expanded=not st.session_state.get("analysis_complete", False)):
+        up_file = st.file_uploader("Select Telemetry CSV", type=["csv"])
+        if up_file:
+            if st.button("🚀 Execute Multi-Agent Orchestration", use_container_width=True):
+                with st.spinner("Uploading and starting AI agents..."):
+                    import io
+                    st.session_state.df = pd.read_csv(io.BytesIO(up_file.getvalue()))
+                    
+                    f = {"file": ("data.csv", up_file.getvalue(), "text/csv")}
+                    d = {"session_id": st.session_state["session_id"]}
+                    try:
+                        r = requests.post(f"{API_URL}/api/upload/csv", files=f, data=d)
+                        if r.status_code == 200:
+                            # TRIGGER ASYNC ANALYSIS
+                            analyze_payload = {"session_id": st.session_state["session_id"]}
+                            a_res = requests.post(f"{API_URL}/api/analyze", json=analyze_payload, timeout=5)
+                            if a_res.status_code == 200:
+                                st.session_state["analysis_in_progress"] = True
+                                st.session_state["analysis_start_time"] = time.time()
+                                st.success("Analysis started! Watch the Orchestration Graph below.")
+                                st.rerun()
+                            else:
+                                st.error(f"Analysis Trigger Failed ({a_res.status_code}): {a_res.text}")
+                        else:
+                            st.error(f"Upload Failed ({r.status_code}): {r.text}")
+                    except Exception as e:
+                        st.error(f"Execution Failed: {str(e)}")
+
+    # Surveillance Block
+    with st.expander("Full Infrastructure Surveillance", expanded=False):
+        st.caption("Polls every registered IoT device in one snapshot. Non-response becomes a maintenance alert.")
+        col_surv_a, col_surv_b = st.columns([1, 1])
+        with col_surv_a:
+            force_anomaly = st.toggle("Force one anomaly for demo", value=True)
+        with col_surv_b:
+            if st.button("Run Surveillance Snapshot", use_container_width=True):
+                try:
+                    r = requests.post(
+                        f"{API_URL}/api/telemetry/surveillance-snapshot",
+                        json={"session_id": st.session_state["session_id"], "force_anomaly": force_anomaly},
+                        timeout=10,
+                    )
+                    if r.status_code == 200:
+                        st.session_state["last_surveillance"] = r.json()
+                        st.session_state["analysis_in_progress"] = True # It triggers pipeline in background
+                        st.session_state["analysis_start_time"] = time.time()
+                        st.success("Surveillance snapshot captured. AI analysis triggered.")
+                        st.rerun()
+                    else:
+                        st.error(f"Surveillance failed ({r.status_code}): {r.text}")
+                except Exception as e:
+                    st.error(f"Surveillance connection failed: {e}")
+        if st.session_state.get("last_surveillance"):
+            st.json(st.session_state["last_surveillance"].get("summary", {}))
+
+    # --- THE UNIFIED DATA STREAM (Already fetched at top of page) ---
+    pass
+
+    # 1. Orchestration Graph
+    if st.session_state["analysis_in_progress"]:
+        st.markdown(f"<div style='text-align:center; padding:10px; background:rgba(46, 204, 113, 0.1); border-radius:8px; border:1px solid #2ecc71;'>⚡ <b>AI Agent Active:</b> {active_node.replace('_', ' ').title()} is currently reasoning...</div>", unsafe_allow_html=True)
+    
+    reasoning_flow_visual(active_node=active_node)
+    st.divider()
+
+    # 2. Main Dashboard Layout
+    col_left, col_right = st.columns([2, 1])
+    
+    with col_left:
+        # Strategy Hub
+        st.subheader("🏢 Baseline Strategic Plan")
+        baseline = [r for r in dashboard_data["recommendations"] if r.get('triggered_by') != 'telemetry_auto']
+        if baseline:
+            visual_sustainability_plan(baseline)
+        else:
+            if not st.session_state["analysis_in_progress"]:
+                st.info("No strategy generated. Run orchestration to begin.")
+            else:
+                st.info("Generating your sustainability roadmap... please wait.")
+        
+        # Live Reasoning Trace
+        st.divider()
+        st.subheader("🧶 Real-Time Reasoning Trace")
+        if dashboard_data["logs"]:
+            grouped = {}
+            for log in dashboard_data["logs"]:
+                grouped.setdefault(log.get("agent", "Unknown Agent"), []).append(log)
+            
+            agent_names = list(grouped.keys())
+            selected_agent = st.selectbox("Inspect Agent Logs", agent_names, index=len(agent_names)-1)
+            for l in grouped.get(selected_agent, []):
+                with st.expander(f"{l.get('timestamp', '')} | {l.get('action')}"):
+                    st.write(l.get('output'))
+                    if l.get("device"): st.caption(f"Device: {l.get('device')}")
+                    if l.get("details"): st.json(l.get("details"))
+        else:
+            st.caption("Awaiting AI coordination logs...")
+
+        report = dashboard_data.get("report", {})
+        if report.get("final_explanation"):
+            st.divider()
+            st.subheader("Final Explanation")
+            st.markdown(report["final_explanation"])
+
+    with col_right:
+        # Anomaly Alerts
+        st.subheader("🚨 Anomaly Center")
+        if dashboard_data["anomalies"]:
+            for a in dashboard_data["anomalies"][:5]:
+                c = "#e74c3c" if a.get('severity') == 'high' else "#f39c12"
+                st.markdown(f"<div style='padding:12px; border-left:4px solid {c}; background:rgba(255,255,255,0.03); margin-bottom:10px; border-radius:4px;'><div style='font-size:12px; font-weight:800; color:{c};'>{a['device']}</div><div style='font-size:11px;'>{a['reason']}</div></div>", unsafe_allow_html=True)
+        else:
+            st.info("System status: Optimal")
+
+        # Audit Trail
+        st.divider()
+        st.subheader("🏥 Auditor Logs")
+        if dashboard_data["audits"]:
+            for au in dashboard_data["audits"][:5]:
+                s = au.get('verification_status')
+                c = "#2ecc71" if s == 'VERIFIED_OPTIMIZED' else "#e74c3c"
+                st.markdown(f"<div style='padding:10px; border-left:4px solid {c}; background:rgba(255,255,255,0.03); margin-bottom:10px;'><div style='font-size:10px; font-weight:900; color:{c};'>{s}</div><div style='font-size:12px; font-weight:600;'>{au.get('device')}</div><div style='font-size:11px; opacity:0.7;'>{au.get('doctor_notes')}</div></div>", unsafe_allow_html=True)
+        else:
+            st.caption("No autonomous audits logged.")
+
+        st.divider()
+        st.subheader("Control Signals")
+        signals = dashboard_data.get("control_signals", [])
+        if signals:
+            for sig in signals[:5]:
+                status = sig.get("result", {}).get("status")
+                st.code(f"{sig.get('device')} -> {sig.get('command')} [{status}]")
+        else:
+            st.caption("No machine bridge signals yet.")
+
+    # 3. Diagnostic Tools
+    st.divider()
+    st.subheader("🧪 Advanced Diagnostic Tools")
+    tab_chat, tab_studio = st.tabs(["💬 AI Expert Consultation", "🔬 Agent Prompt Lab"])
+    
+    with tab_chat:
+        if "msgs" not in st.session_state: st.session_state.msgs = []
+        
+        # Fixed-height scrollable container for professional chat layouts
+        chat_container = st.container(height=350)
+        with chat_container:
+            for m in st.session_state.msgs:
+                with st.chat_message(m["role"]): st.markdown(m["content"])
+                
+        # Unique key prevents widget duplication on page state reruns
+        if p := st.chat_input("Ask SustainAI expert...", key="expert_chat_input"):
+            st.session_state.msgs.append({"role": "user", "content": p})
+            with chat_container:
+                with st.chat_message("user"): st.markdown(p)
+            
+            try:
+                r = requests.post(f"{API_URL}/api/chat", json={"session_id": st.session_state["session_id"], "message": p})
+                resp = r.json().get("response") if r.status_code == 200 else "AI Engine Busy."
+            except Exception:
+                resp = "Core Engine Offline."
+                
+            st.session_state.msgs.append({"role": "assistant", "content": resp})
+            st.rerun()
+
+    with tab_studio:
+        agent_studio_panel(dashboard_data["logs"], {"session_id": st.session_state["session_id"]})
+
+    # --- GLOBAL SYNC LOOP ---
+    if st.session_state["live_mode"]:
+        if st.session_state["analysis_in_progress"]:
+            time.sleep(1) # Fast refresh during analysis
+            st.rerun()
+        else:
+            time.sleep(5) # Steady refresh for dashboard
+            st.rerun()
+
+if __name__ == "__main__":
+    run_dashboard()
