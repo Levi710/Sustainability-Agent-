@@ -235,7 +235,8 @@ def _llm_call(system_prompt: str, user_content: str, fallback: Any) -> Any:
     
     providers = []
     if local_enabled:
-        providers.append(("local", "no_key"))
+        ollama_key = os.getenv("OLLAMA_API_KEY", "no_key")
+        providers.append(("local", ollama_key))
         
     # Try Groq first
     groq_key = os.getenv("GROQ_API_KEY")
