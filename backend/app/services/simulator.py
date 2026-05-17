@@ -7,6 +7,7 @@ def run_simulation(
     proposed_daily_hours: float,
     shift_to_off_peak: bool,
     tariff_rate: float = 8.0,
+    kwh_per_hour: float = 1.5,
 ) -> dict:
     """
     Simulate energy savings for a given device usage change.
@@ -15,7 +16,6 @@ def run_simulation(
     co2_avoided_kg, explanation.
     """
     hours_saved_per_day = current_daily_hours - proposed_daily_hours
-    kwh_per_hour = 1.5  # average appliance assumption
 
     kwh_saved_per_month = hours_saved_per_day * kwh_per_hour * 30
 

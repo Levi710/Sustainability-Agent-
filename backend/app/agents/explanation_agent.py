@@ -117,6 +117,22 @@ def explanation_node(state: dict) -> dict:
 
     constraint_block = state.get("constraint_block", "")
 
+    try:
+        from rag.retriever import retriever
+    except ModuleNotFoundError:
+        from backend.rag.retriever import retriever
+    
+    # Query RAG context for explanation grounding
+    rag_docs = []
+    for rec in state.get("recommendations", [])[:2]:
+        docs = retriever.retrieve_context(f"standards or benefits for {rec.get('control_action')}", top_k=1)
+        rag_docs.extend(docs)
+        
+    rag_ref_str = json.dumps([
+        {"source": d["source"], "section": d["section"], "page": d["page"], "guideline": d["content"]}
+        for d in rag_docs
+    ], indent=2)
+
     system_prompt = EXPLANATION_SYSTEM.format(
         building_type=building_type,
         constraint_block=constraint_block,
@@ -127,6 +143,7 @@ def explanation_node(state: dict) -> dict:
         doctor_summary=doctor_summary,
         critical_devices=json.dumps(critical_devices)
     )
+    system_prompt += f"\n\nLOCAL RAG MANUALS GROUNDING (CITE THESE SOURCES):\n{rag_ref_str}"
 
     # ── Append historical context ────────────────────────────────────────────
     hist = state.get("historical_context", {})

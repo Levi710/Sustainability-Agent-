@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import upload, telemetry, chat
+from app.api import upload, telemetry, chat, rag
 from app.database.connection import create_tables
 from dotenv import load_dotenv
 
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(upload.router, prefix="/api")
 app.include_router(telemetry.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(rag.router)
 
 
 @app.on_event("startup")

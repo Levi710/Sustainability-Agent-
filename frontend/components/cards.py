@@ -31,6 +31,15 @@ def recommendation_card(rec: dict, index: int):
         border_color = "#2d9c6e"
         badge_bg = "#1a7a52"
 
+    citation_html = ""
+    if rec.get("source_document"):
+        citation_html = f"""
+    <div style="margin-top:10px; padding:6px 12px; background:rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); border-radius:6px; font-size:11px; color:#2ecc71; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <span>📖 Grounded Manual: <b>{rec.get('source_document')}</b></span>
+        <span>Section: <b>{rec.get('section', 'General')}</b> | Page: <b>{rec.get('page', 'N/A')}</b></span>
+    </div>
+        """
+
     st.markdown(f"""
 <div style="
     border-left: 4px solid {border_color};
@@ -50,7 +59,7 @@ def recommendation_card(rec: dict, index: int):
             font-weight:700;
             padding:2px 9px;
             border-radius:12px;
-        ">₹{savings}/mo saved</span>
+        ">{savings}</span>
     </div>
     <p style="color:#b0b0b0; font-size:13px; margin:4px 0;">
         {rec.get('reason', '')}
@@ -58,12 +67,12 @@ def recommendation_card(rec: dict, index: int):
     <p style="color:#e0e0e0; font-size:13px; margin:4px 0;">
         💡 {rec.get('recommendation', '')}
     </p>
-    <div style="margin-top:10px;">
-        <span style="font-size:11px; color:#909090;">AI Confidence</span>
-        <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:6px; margin-top:4px;">
+    {citation_html}
+    <div style="margin-top:10px; display:flex; align-items:center; gap:10px;">
+        <span style="font-size:11px; color:#909090;">AI Confidence: <b>{conf_pct}%</b></span>
+        <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:6px; flex-grow:1;">
             <div style="width:{conf_pct}%; background:{border_color}; height:100%; border-radius:4px;"></div>
         </div>
-        <span style="font-size:11px; color:#909090;">{conf_pct}%</span>
     </div>
 </div>
 """, unsafe_allow_html=True)

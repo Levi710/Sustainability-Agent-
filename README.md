@@ -65,8 +65,8 @@ SustainAI V2 replaces generic, static energy recommendations with a compiled non
 Every core component of SustainAI V2 has been engineered to perfectly align with Capgemini's **Use Case 46: Sustainability Agent** criteria:
 
 ### 1. Savings Estimation Methodology
-*   **Dynamic Hardware Simulation**: Evaluates baseline vs peak telemetry usage using real mathematical equations for HVAC, Lighting, and Server Load.
-*   **Peak-Tariff Integration**: Computes real-world financial gains in INR (₹) by matching active spikes against peak-hour commercial tariff structures.
+*   **Retrieval-Augmented Operational Intelligence (RAG)**: Completely replaces hardcoded assumptions with dynamic specifications semantically retrieved from local regulatory manuals (BEE Star Ratings, ECBC 2017, ASHRAE).
+*   **Dynamic Grounded Simulation**: Computes monthly kWh and financial savings in INR (₹) based on certified appliance parameters (rated kW, typical operating schedules, standby loads) retrieved from standard energy PDFs.
 
 ### 2. Recommendation Practicality
 *   **Constraint-First Safe Whitelisting**: Contextual building profile constraints act as a permanent guardrail. Critical infrastructure (like server room cooling or emergency lighting) is automatically locked out from all optimization actions.
@@ -85,10 +85,11 @@ Every core component of SustainAI V2 has been engineered to perfectly align with
 
 ## 🛠️ Technology Stack
 
+*   **RAG Engine**: Local dense semantic vector store built on Facebook AI Similarity Search (`FAISS`), HuggingFace embeddings (`all-MiniLM-L6-v2`), and `pypdf` page chunk extractor.
 *   **LLM Core**: Decoupled Groq LPU Cloud (Llama 3.1 70B/8B) or NVIDIA API Catalog completing full agent runs in **< 1.5 seconds**.
 *   **Orchestration**: LangGraph state graph orchestrator.
 *   **Backend API**: Python FastAPI Core Service with an APScheduler persistent background telemetry engine.
-*   **UI**: Streamlit Premium Dashboard with Plotly and custom SVG/HTML rendering components.
+*   **UI**: Streamlit Premium Dashboard with Plotly, custom SVG/HTML rendering components, and green Grounded Manual badges.
 *   **Database**: SQLite + SQLAlchemy ORM.
 *   **Secrets**: dotenv configuration pattern (`.env`).
 
@@ -103,7 +104,13 @@ From the repository root, install the required packages:
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Variables
+### 2. Ingest Regulatory Manuals (Build RAG Vector DB)
+Extract text from BEE, ECBC, and ASHRAE PDFs and compile the local FAISS index:
+```powershell
+.\.venv\Scripts\python.exe -m backend.rag.ingest
+```
+
+### 3. Configure Environment Variables
 Ensure you have a `.env` file at the root with your API keys:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
@@ -111,14 +118,14 @@ ENABLE_SMS=False
 USE_LOCAL_LLM=False
 ```
 
-### 3. Launch Backend API (Uvicorn Server)
+### 4. Launch Backend API (Uvicorn Server)
 Start the FastAPI server on port `8000`:
 ```powershell
 $env:PYTHONPATH="backend"
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-### 4. Launch Streamlit UI
+### 5. Launch Streamlit UI
 In a second terminal, start the frontend dashboard on port `8501`:
 ```powershell
 .\.venv\Scripts\streamlit.exe run frontend\app.py

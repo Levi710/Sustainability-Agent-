@@ -330,6 +330,11 @@ def surveillance_node(state: SustainAIState) -> SustainAIState:
     }
 
 def savings_node(state: SustainAIState) -> SustainAIState:
+    try:
+        from rag.retriever import retriever
+    except ModuleNotFoundError:
+        from backend.rag.retriever import retriever
+
     savings_estimates = []
     seen_devices = set()
 
@@ -341,25 +346,45 @@ def savings_node(state: SustainAIState) -> SustainAIState:
             continue
         seen_devices.add(device)
 
+        # Query local RAG specs dynamically matching the device type
+        spec = retriever.retrieve_by_device(device)
+
         result = run_simulation(
             device=device,
-            current_daily_hours=4.0,
-            proposed_daily_hours=3.0,
+            current_daily_hours=spec.get("typical_daily_hours", 4.0),
+            proposed_daily_hours=spec.get("proposed_daily_hours", 3.0),
             shift_to_off_peak=True,
             tariff_rate=8.0,
+            kwh_per_hour=spec.get("rated_kw", 1.5)
         )
         result["behavior"] = behavior.get("behavior", "")
+        result["spec_source"] = spec.get("source", "BEE Star Rating Guideline")
+        result["section"] = spec.get("section", "Standard Guidelines")
+        result["page"] = spec.get("page", 1)
+
         savings_estimates.append(result)
 
     if not savings_estimates:
-        savings_estimates.append(run_simulation("AC", 4.0, 3.0, True, 8.0))
+        spec = retriever.retrieve_by_device("AC")
+        fallback_res = run_simulation(
+            device="AC",
+            current_daily_hours=spec.get("typical_daily_hours", 4.0),
+            proposed_daily_hours=spec.get("proposed_daily_hours", 3.0),
+            shift_to_off_peak=True,
+            tariff_rate=8.0,
+            kwh_per_hour=spec.get("rated_kw", 1.5)
+        )
+        fallback_res["spec_source"] = spec.get("source", "BEE Star Rating Guideline")
+        fallback_res["section"] = spec.get("section", "Standard Guidelines")
+        fallback_res["page"] = spec.get("page", 1)
+        savings_estimates.append(fallback_res)
 
     return {
         "savings_estimates": savings_estimates,
         "agent_logs": [{
             "agent": "Simulator Agent",
             "action": "Economic Impact Analysis",
-            "output": f"Calculated savings for {len(savings_estimates)} devices.",
+            "output": f"Calculated grounded savings for {len(savings_estimates)} devices.",
             "details": savings_estimates
         }]
     }

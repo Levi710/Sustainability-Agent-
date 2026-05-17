@@ -138,7 +138,13 @@ def doctor_node(state: dict) -> dict:
         current_kwh = device_telemetry[-1]["kwh"] if telemetry_available else None
         recent_readings = [t["kwh"] for t in device_telemetry[-3:]]
 
-        # ── Build human prompt ───────────────────────────────────────────────
+        try:
+            from rag.retriever import retriever
+        except ModuleNotFoundError:
+            from backend.rag.retriever import retriever
+        spec = retriever.retrieve_by_device(device)
+
+        # ── Build human prompt with RAG grounding evidence ───────────────────
         human_prompt = json.dumps({
             "worker_report": {
                 "device": device,
@@ -156,6 +162,15 @@ def doctor_node(state: dict) -> dict:
                 "telemetry_available": telemetry_available,
                 "current_kwh": current_kwh,
                 "recent_3_readings": recent_readings,
+            },
+            "rag_standards_evidence": {
+                "rated_kw": spec.get("rated_kw"),
+                "typical_daily_hours": spec.get("typical_daily_hours"),
+                "proposed_daily_hours": spec.get("proposed_daily_hours"),
+                "source": spec.get("source"),
+                "section": spec.get("section"),
+                "page": spec.get("page"),
+                "expected_efficiency_behavior": spec.get("content")
             }
         }, default=str)
 

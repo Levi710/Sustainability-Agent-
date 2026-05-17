@@ -75,11 +75,23 @@ def behavior_node(state: dict) -> dict:
     patterns = state.get("patterns", [])[:5]
     anomalies = state.get("anomalies", [])[:10]
 
+    try:
+        from rag.retriever import retriever
+    except ModuleNotFoundError:
+        from backend.rag.retriever import retriever
+    rag_docs = []
+    for p in patterns[:3]:
+        docs = retriever.retrieve_context(f"behavioral waste or normal operation for {p.get('device')}", top_k=1)
+        rag_docs.extend(docs)
+    
+    rag_context_str = json.dumps([{"source": d["source"], "content": d["content"]} for d in rag_docs], indent=2)
+
     system_prompt = BEHAVIOR_SYSTEM.format(
         building_type=building_type,
         constraint_block=constraint_block,
         domain_research=json.dumps(domain_research, indent=2)
     )
+    system_prompt += f"\n\nLOCAL RAG RETRIEVED GUIDELINES:\n{rag_context_str}"
 
     human_prompt = json.dumps({
         "patterns": patterns,
