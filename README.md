@@ -4,6 +4,7 @@
 [![Use Case](https://img.shields.io/badge/Use%20Case-46%2F50-green?style=for-the-badge)](https://github.com/Levi710/Sustainability-Agent-)
 [![Tech Stack](https://img.shields.io/badge/Tech%20Stack-FastAPI%20%7C%20Streamlit%20%7C%20LangGraph-orange?style=for-the-badge)](https://github.com/Levi710/Sustainability-Agent-)
 [![Engine Status](https://img.shields.io/badge/Engine%20Status-Optimal-brightgreen?style=for-the-badge)](https://github.com/Levi710/Sustainability-Agent-)
+![Optimization LLM](https://img.shields.io/badge/Optimization%20LLM-Qwen2.5%20LoRA-purple?style=for-the-badge)
 
 SustainAI V2 is an enterprise-grade, closed-loop **multi-agent SCADA and energy sustainability orchestrator** designed for smart campuses and commercial buildings. It transforms traditional, passive energy dashboards into an **autonomous, self-healing energy control loop** that active-polls telemetry, designs practical constraints-safe fixes, simulates financial savings, and performs real-time verification audits.
 
@@ -92,6 +93,76 @@ Every core component of SustainAI V2 has been engineered to perfectly align with
 *   **UI**: Streamlit Premium Dashboard with Plotly, custom SVG/HTML rendering components, and green Grounded Manual badges.
 *   **Database**: SQLite + SQLAlchemy ORM.
 *   **Secrets**: dotenv configuration pattern (`.env`).
+
+## 🧠 AI Optimization Engine (NEW)
+
+SustainAI V2 now includes a dedicated Energy Optimization Language Model trained specifically for building energy management recommendations.
+
+### Optimization LLM Pipeline
+
+```text
+ASHRAE Energy Dataset
+        ↓
+Feature Engineering
+        ↓
+Balanced Optimization Dataset
+        ↓
+Instruction Tuning Dataset
+        ↓
+Qwen2.5-7B + LoRA Fine-Tuning
+        ↓
+Optimization Recommendation Engine
+        ↓
+Autonomous Building Agent
+```
+
+### Training Dataset
+
+The optimization model was trained using a processed version of the ASHRAE Energy Prediction dataset.
+
+#### Dataset Statistics
+
+| Action                    |  Samples |
+| ------------------------- | -------: |
+| monitor                   |     1500 |
+| reduce_hvac               |      993 |
+| shutdown_unused_lighting  |      512 |
+| request_compliance_review |      500 |
+| **Total**                 | **3505** |
+
+### Model Configuration
+
+| Parameter        | Value               |
+| ---------------- | ------------------- |
+| Base Model       | Qwen2.5-7B-Instruct |
+| Fine-Tuning      | LoRA                |
+| Rank (r)         | 8                   |
+| Alpha            | 16                  |
+| Epochs           | 1                   |
+| Training Samples | 3505                |
+| Hardware         | NVIDIA RTX A6000    |
+
+### Training Results
+
+| Metric         | Value     |
+| -------------- | --------- |
+| Training Loss  | 0.7490    |
+| Training Steps | 439       |
+| Runtime        | 170.7 sec |
+
+### Optimization Actions
+
+The Optimization LLM can recommend:
+
+* HVAC load reduction
+* Lighting optimization
+* Continuous monitoring
+* Compliance review requests
+* Energy saving interventions
+* Occupancy-aware adjustments
+
+This optimization layer enables SustainAI V2 to move beyond monitoring and toward autonomous energy decision support.
+
 
 ---
 
