@@ -70,21 +70,17 @@ def send_nudge(session_id: str, db) -> bool:
 
         # ── Format event type for human reading ──────────────────────────────
         event_labels = {
-            "hardware_malfunction": "⚠️ Hardware Malfunction",
-            "occupancy_triggered_spike": "🚶 Motion in Empty Zone",
-            "voice_triggered_on": "🎤 Voice Command Triggered",
+            "hardware_malfunction": "Malfunction",
+            "occupancy_triggered_spike": "Empty Zone Motion",
+            "voice_triggered_on": "Voice Trigger",
         }
         event_label = event_labels.get(spike.event_type, spike.event_type)
 
-        # ── Compose SMS message ───────────────────────────────────────────────
+        # ── Compose SMS message (Shortened & Unicode-Free to fit 1 Trial Segment) ───
         message = (
-            f"🔋 SustainAI Alert\n"
-            f"Building: {session_id[:8]}...\n"
-            f"Device: {spike.device}\n"
-            f"Event: {event_label}\n"
-            f"Reading: {spike.kwh:.2f} kWh (SPIKE)\n"
-            f"Time: {spike.timestamp.strftime('%H:%M:%S')}\n"
-            f"Auto-fix initiated. Check dashboard for Doctor audit."
+            f"SustainAI Alert: Anomaly ({event_label}) on {spike.device} "
+            f"({spike.kwh:.2f}kWh) at {spike.timestamp.strftime('%H:%M')}. "
+            f"Auto-fix initiated."
         )
 
         # ── Send via Twilio ───────────────────────────────────────────────────
