@@ -1,0 +1,14 @@
+[
+  {
+    "instruction":"Recommend an energy optimization action.",
+    "input":{
+      "primary_use":"Office",
+      "square_feet":150000,
+      "meter_reading":850,
+      "air_temperature":32
+    },
+    "output":{
+      "action":"reduce_hvac"
+    }
+  }
+]
